@@ -2,7 +2,10 @@ import streamlit as st
 from firebase_admin import firestore
 from streamlit_option_menu import option_menu
 from itertools import cycle
-import songrecommendations
+from datetime import datetime
+from models import Post
+import pandas as pd
+
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 
@@ -12,7 +15,39 @@ SPOTIPY_CLIENT_SECRET='739bbbed49864382a64a64ccd64ecdcc'
 
 auth_manager = SpotifyClientCredentials(client_id=SPOTIPY_CLIENT_ID, client_secret=SPOTIPY_CLIENT_SECRET)
 sp = spotipy.Spotify(auth_manager=auth_manager)
-selection = "Explore"
+
+def get_post():
+    return [
+        Post.date.value,
+        Post.user_name.value,
+        Post.track_name.value,
+        Post.message.value,
+    ]
+
+@st.cache_resource
+def get_db():
+    db = firestore.client()
+    return db
+
+@st.cache_data(ttl=60)
+def get_all_posts():
+    db = get_db()
+    all_posts = db.collection("Posts").order_by(Post.date.value).stream()
+    df = pd.DataFrame([m.to_dict() for m in all_posts])
+    df = df[get_post()]
+    return df
+
+def post_message(db, user_name, track_name, input_message):
+    payload = {
+        Post.user_name.value: user_name,
+        Post.track_name.value: track_name,
+        Post.message.value: input_message,
+        Post.date.value: datetime.now().strftime("%Y/%m/%d %H:%M:%S"),
+    }
+    doc_ref = db.collection("Posts").document()
+    doc_ref.set(payload)
+    return
+
 
 def app():
     st.markdown("<h1 style='text-align: center;'><i class='fas fa-cog'></i>Home Page</h1>", unsafe_allow_html=True)
@@ -32,48 +67,28 @@ def app():
             st.session_state.db = ''
         db=firestore.client()
         st.session_state.db=db
-        # ph = ''
-        # if st.session_state.username=='':
-        #     ph = 'Login to be able to post!!'
-        # else:
-        #     ph='Post your thought'    
-        # post=st.text_area(label=' :orange[+ New Post]',placeholder=ph,height=None, max_chars=500)
-        # if st.button('Post',use_container_width=20):
-        #     if post!='':
-        #         info = db.collection('Posts').document(st.session_state.username).get()
-        #         if info.exists:
-        #             info = info.to_dict()
-        #             if 'Content' in info.keys():
-                    
-        #                 pos=db.collection('Posts').document(st.session_state.username)
-        #                 pos.update({u'Content': firestore.ArrayUnion([u'{}'.format(post)])})
-        #                 # st.write('Post uploaded!!')
-        #             else:
-                        
-        #                 data={"Content":[post],'Username':st.session_state.username}
-        #                 db.collection('Posts').document(st.session_state.username).set(data)    
-        #         else:
-                        
-        #             data={"Content":[post],'Username':st.session_state.username}
-        #             db.collection('Posts').document(st.session_state.username).set(data)
-        #         st.success('Post uploaded!!')
-        st.header(':violet[Tracks Favorite] ')
-        docs = db.collection('Tracks').get()      
-        for doc in docs:
-            d=doc.to_dict()
-            try:
-                st.text_area(label=':green[Posted by:] '+':orange[{}]'.format(d['Username']),value=d['Content'][-1],height=20)
-            except: pass
-        st.header(':violet[Posts] ')
-        docs = db.collection('Posts').get()    
-        for doc in docs:
-            d=doc.to_dict()
-            try:
-                with st.chat_message("user"):
-                    st.text_area(label=':green[User:] ' + ':orange[{}]'.format(d['Username']), value=d['Content'][-1],height=20)
-                # with st.chat_message(d['Username']):
-                #     st.write(d['Content'][-1])
-            except: pass
+
+        if 'username' not in st.session_state or st.session_state.username=='':
+            st.write('Login to be able to post!')
+        else: 
+            if 'btn_post' not in st.session_state:
+                st.session_state.btn_post = False
+            def click_button():
+                st.session_state.btn_post = not st.session_state.btn_post
+            st.button('Share Your Favorite Songs!', on_click=click_button)
+            if st.session_state.btn_post:
+                with st.form(key="form", clear_on_submit=True):
+                    tract_name = st.text_input("Track Name")
+                    input_message = st.text_area(label="Your message",height=None, max_chars=500)
+                    if st.form_submit_button("Submit") and st.session_state.username:
+                        post_message(db, st.session_state.username , tract_name, input_message)
+                        st.success("Your message was posted!")
+                        st.balloons()
+
+        st.header('Posts')
+        all_posts = get_all_posts()
+        st.dataframe(all_posts, use_container_width=True, hide_index=True)
+
     if st.session_state.menuSelect == "Search":
         search_keyword = st.text_input("Search songs, albums, artists, playlists")
         filteredImages = []
@@ -81,16 +96,19 @@ def app():
         caption = []
         col1, col2, col3, col4 = st.columns([1,1,1,1])
         with col1:
-            if st.button('Songs') and search_keyword is not None and len(str(search_keyword)) > 0:
-                tracks = sp.search(q='track:'+ search_keyword,type='track', limit=10)
-                tracks_list = tracks['tracks']['items']
-                if len(tracks_list) > 0:
-                    for track in tracks_list:
-                        filteredImages.append(track['album']['images'][1]['url'])
-                        listUrl.append(track['external_urls']['spotify'])
-                        caption.append(track['name'] + " - " + track['artists'][0]['name'])
+            if st.button('Songs'):
+                if search_keyword is not None and len(str(search_keyword)) > 0:
+                    tracks = sp.search(q='track:'+ search_keyword,type='track', limit=10)
+                    tracks_list = tracks['tracks']['items']
+                    if len(tracks_list) > 0:
+                        for track in tracks_list:
+                            filteredImages.append(track['album']['images'][1]['url'])
+                            listUrl.append(track['external_urls']['spotify'])
+                            caption.append(track['name'] + " - " + track['artists'][0]['name'])
+                    else:
+                        st.warning('Not found')
                 else:
-                    st.warning('Not found')
+                    st.warning('Please enter keyword!')
         with col2:
             if st.button('Albums') and search_keyword is not None and len(str(search_keyword)) > 0:
                 albums = sp.search(q='album:'+ search_keyword,type='album', limit=10)
