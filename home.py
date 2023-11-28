@@ -5,7 +5,7 @@ from itertools import cycle
 from datetime import datetime
 from models import Post
 import pandas as pd
-
+import polarplot
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 
@@ -58,7 +58,7 @@ def app():
     def on_change(key):
         st.session_state.menuSelect = st.session_state[key]
         
-    menuHeader = option_menu(None, ["Explore", "Search", "Trending", 'Moods & genres'],
+    menuHeader = option_menu(None, ["Explore", "Search", "Trending", 'Analysis'],
                         icons=['compass', 'search', "graph-up-arrow", 'emoji-smile'],
                         on_change=on_change, key='menu_5', orientation="horizontal")
 
@@ -146,8 +146,36 @@ def app():
 
     if st.session_state.menuSelect == 'Trending':
         Trending()
-    if st.session_state.menuSelect == 'Moods & genres':
-        Moods()
+    if st.session_state.menuSelect == 'Analysis':
+        tracks = []
+        search_results = []
+        track_id = None
+        selected_track_choice = None 
+        search_keyword = st.text_input("Enter song/track:")
+        button_clicked = st.button("Search")
+        if search_keyword is not None and len(str(search_keyword)) > 0:
+            tracks = sp.search(q='track:'+ search_keyword,type='track', limit=20)
+            tracks_list = tracks['tracks']['items']
+            if len(tracks_list) > 0:
+                for track in tracks_list:
+                    search_results.append(track['name'] + " - " + track['artists'][0]['name'])
+        selected_track = st.selectbox("Select your song/track: ", search_results)
+        if selected_track is not None and len(tracks) > 0:
+            tracks_list = tracks['tracks']['items']
+            if len(tracks_list) > 0:
+                for track in tracks_list:
+                    str_temp = track['name'] + " - " + track['artists'][0]['name']
+                    if str_temp == selected_track:
+                        track_id = track['id']           
+            if track_id is not None:
+                track_features  = sp.audio_features(track_id) 
+                df = pd.DataFrame(track_features, index=[0])
+                df_features = df.loc[: ,['acousticness', 'danceability', 'energy', 'instrumentalness', 'liveness', 'speechiness', 'valence']]
+                st.dataframe(df_features, hide_index=True)
+                polarplot.feature_plot(df_features)
+            else:
+                st.write("Please select a track from the list")  
+
 
        
 def Explore():
@@ -156,5 +184,4 @@ def Explore():
 def Trending():
     st.write('Trending')
 
-def Moods():
-    st.write('Moods & genres')
+

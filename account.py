@@ -62,7 +62,7 @@ def app():
             st.button('Login', on_click=LoginAction)        
           
     if st.session_state.signout:
-                st.text('Name '+st.session_state.username)
+                st.text('Name: '+st.session_state.username)
                 st.text('Email id: '+st.session_state.useremail)
                 st.button('Sign out', on_click=SignOutAction)                       
     def ap():
