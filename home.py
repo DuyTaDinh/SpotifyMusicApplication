@@ -6,6 +6,7 @@ from datetime import datetime
 from models import Post
 import pandas as pd
 import polarplot
+import songrecommendations
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 
@@ -29,13 +30,14 @@ def get_db():
     db = firestore.client()
     return db
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=30)
 def get_all_posts():
     db = get_db()
     all_posts = db.collection("Posts").order_by(Post.date.value).stream()
     df = pd.DataFrame([m.to_dict() for m in all_posts])
-    df = df[get_post()]
-    return df
+    if df.empty:
+       return df
+    return df[get_post()]
 
 def post_message(db, user_name, track_name, input_message):
     payload = {
@@ -51,6 +53,8 @@ def post_message(db, user_name, track_name, input_message):
 
 def app():
     st.markdown("<h1 style='text-align: center;'><i class='fas fa-cog'></i>Home Page</h1>", unsafe_allow_html=True)
+    if 'username' in st.session_state:
+        st.text('Hello '+st.session_state.username)
 
     if 'menuSelect' not in st.session_state:
         st.session_state.menuSelect = "Explore"
@@ -58,8 +62,8 @@ def app():
     def on_change(key):
         st.session_state.menuSelect = st.session_state[key]
         
-    menuHeader = option_menu(None, ["Explore", "Search", "Trending", 'Analysis'],
-                        icons=['compass', 'search', "graph-up-arrow", 'emoji-smile'],
+    menuHeader = option_menu(None, ["Explore", "Search", "Recommend", 'Analysis'],
+                        icons=['compass', 'search', "cpu", 'emoji-smile'],
                         on_change=on_change, key='menu_5', orientation="horizontal")
 
     if st.session_state.menuSelect == "Explore":
@@ -144,15 +148,55 @@ def app():
                 st.markdown(f"[![Foo]({sourceImg})]({url})")
                 
 
-    if st.session_state.menuSelect == 'Trending':
-        Trending()
+    if st.session_state.menuSelect == 'Recommend':
+        recommend_choices = ['Spotify Recommendation', 'Build-in Recommendation']
+        selected_choice = st.selectbox('Please select: ', recommend_choices)
+        search_keyword = st.text_input("Enter keywords")
+        track_id = None
+        filteredImages = []
+        listUrl = []
+        caption = []
+        if st.button('Search'):
+            if search_keyword is not None and len(str(search_keyword)) > 0:
+                tracks = sp.search(q='track:'+ search_keyword,type='track', limit=10)
+                tracks_list = tracks['tracks']['items']
+                if len(tracks_list) > 0:
+                    track_id = tracks_list[0]['id']
+                    filteredImages.append(tracks_list[0]['album']['images'][1]['url'])
+                    listUrl.append(tracks_list[0]['external_urls']['spotify'])
+                    caption.append(tracks_list[0]['name']+ " - " + tracks_list[0]['artists'][0]['name'])
+                else:
+                    st.warning('Not found')
+            else:
+                st.warning('Please enter keyword!')
+        if track_id is not None:
+            token = songrecommendations.get_token(SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET)
+            similar_songs_json = songrecommendations.get_track_recommendations(track_id, token)
+            recommendation_list = similar_songs_json['tracks']
+            recommendation_list_df = pd.DataFrame(recommendation_list)
+            recommendation_df = recommendation_list_df[['name', 'explicit', 'duration_ms', 'popularity']]
+            st.dataframe(recommendation_df)
+            # songrecommendations.song_recommendation_vis(recommendation_df)
+            for track_recommendation in recommendation_list:
+                # print(track_recommendation)
+                str_temp = track_recommendation['name'] + " - " + track_recommendation['artists'][0]['name']
+                filteredImages.append(track_recommendation['album']['images'][1]['url'])
+                listUrl.append(track_recommendation['external_urls']['spotify'])
+                caption.append(str_temp)
+            cols = cycle(st.columns(2))
+            for idx, filteredImage in enumerate(filteredImages):
+                sourceImg = filteredImage.strip('"')
+                url = listUrl[idx]
+                with next(cols):
+                    st.code(caption[idx], language='python')
+                    st.markdown(f"[![Foo]({sourceImg})]({url})")
+
     if st.session_state.menuSelect == 'Analysis':
         tracks = []
         search_results = []
         track_id = None
         selected_track_choice = None 
-        search_keyword = st.text_input("Enter song/track:")
-        button_clicked = st.button("Search")
+        search_keyword = st.text_input("Enter song/track to analysis:")
         if search_keyword is not None and len(str(search_keyword)) > 0:
             tracks = sp.search(q='track:'+ search_keyword,type='track', limit=20)
             tracks_list = tracks['tracks']['items']
@@ -175,13 +219,4 @@ def app():
                 polarplot.feature_plot(df_features)
             else:
                 st.write("Please select a track from the list")  
-
-
-       
-def Explore():
-    st.write('explore')
-
-def Trending():
-    st.write('Trending')
-
 
