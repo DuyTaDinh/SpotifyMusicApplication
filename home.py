@@ -186,6 +186,8 @@ def app():
             cols = cycle(st.columns(2))
             for idx, filteredImage in enumerate(filteredImages):
                 sourceImg = filteredImage.strip('"')
+                if idx >= len(listUrl):
+                    break
                 url = listUrl[idx]
                 with next(cols):
                     st.code(caption[idx], language='python')
