@@ -10,8 +10,8 @@ import songrecommendations
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 
-SPOTIPY_CLIENT_ID='e18fafeb60a949d2a9b7d1efccabe69a'
-SPOTIPY_CLIENT_SECRET='739bbbed49864382a64a64ccd64ecdcc'
+SPOTIPY_CLIENT_ID= 'YOUR SPOTIPY_CLIENT_ID'
+SPOTIPY_CLIENT_SECRET='YOUR SPOTIPY_CLIENT_SECRET'
 
 
 auth_manager = SpotifyClientCredentials(client_id=SPOTIPY_CLIENT_ID, client_secret=SPOTIPY_CLIENT_SECRET)
@@ -149,8 +149,6 @@ def app():
                 
 
     if st.session_state.menuSelect == 'Recommend':
-        recommend_choices = ['Spotify Recommendation', 'Build-in Recommendation']
-        selected_choice = st.selectbox('Please select: ', recommend_choices)
         search_keyword = st.text_input("Enter keywords")
         track_id = None
         filteredImages = []
