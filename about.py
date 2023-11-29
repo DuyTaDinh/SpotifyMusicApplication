@@ -20,12 +20,12 @@ def app():
         "is tailored to your unique taste. Say goodbye to endless scrolling and let us be your musical guide."
     )
 
-    ## Trending Music
-    st.subheader(":chart_with_upwards_trend: Trending Music")
+    ## Analysis Feature
+    st.subheader("🎵 Song Analysis and Visualization")
     st.markdown(
-        "Stay in the loop with the latest musical trends! Explore our 'Top Trending' section to discover the hottest tracks "
-        "making waves around the globe. Whether it's chart-toppers or hidden gems, we've got your finger on the pulse of the "
-        "music scene."
+        "Dive deeper into the world of music with our analysis feature! Musicfy allows you to explore the intricate details of "
+        "your favorite songs, including key signatures, tempo, energy levels, and more. Visualize these characteristics in an "
+        "engaging way, providing you with a richer understanding of the music you love."
     )
 
     ## Social Sharing
